@@ -21,6 +21,10 @@ class ConversionThread(QThread):
 
     def run(self):
         try:
+            # Verify input file exists
+            if not os.path.isfile(self.input_file):
+                raise FileNotFoundError(f"Input file not found: {self.input_file}")
+
             # Get input file information
             probe = ffmpeg.probe(self.input_file)
             duration = float(probe['format']['duration'])
@@ -67,7 +71,11 @@ class ConversionThread(QThread):
                         progress = min(int(time / duration * 100), 100)
                         self.progress.emit(progress)
             
-            self.finished.emit(True, "Conversion successful")
+            return_code = process.poll()
+            if return_code == 0:
+                self.finished.emit(True, "Conversion successful")
+            else:
+                self.finished.emit(False, f"Conversion failed with return code {return_code}")
         except Exception as e:
             self.finished.emit(False, str(e))
 
@@ -181,6 +189,11 @@ class MediaConverterGUI(QMainWindow):
         self.output_file, _ = QFileDialog.getSaveFileName(self, "Save Output File", "", f"*.{output_format}")
         
         if self.output_file:
+            # Ensure the output directory exists
+            output_dir = os.path.dirname(self.output_file)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
             self.convert_button.setEnabled(False)
             self.progress_bar.setValue(0)
             self.status_label.setText("Converting...")
